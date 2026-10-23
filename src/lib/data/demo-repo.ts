@@ -1,3 +1,4 @@
+import { derivativesRoadmap } from "@/lib/ai/samples";
 import type { Chat, Collection, Repo } from "./repo";
 import type {
   Assignment,
@@ -10,12 +11,14 @@ import type {
   NewRecord,
   Note,
   Profile,
+  Roadmap,
+  RoadmapNode,
   StudySession,
   Subject,
   TimetableEntry,
 } from "./types";
 
-const STORAGE_KEY = "studyhub-demo-v3";
+const STORAGE_KEY = "studyhub-demo-v4";
 const ME = "demo-user";
 
 type DemoState = {
@@ -31,6 +34,8 @@ type DemoState = {
   rooms: ChatRoom[];
   roomMembers: Record<string, string[]>;
   messages: ChatMessage[];
+  roadmaps: Roadmap[];
+  roadmapNodes: RoadmapNode[];
 };
 
 /** Pretend classmates so the chat feels alive in demo mode. */
@@ -63,6 +68,22 @@ function daysFromNow(days: number, hour = 23, minute = 59) {
   d.setDate(d.getDate() + days);
   d.setHours(hour, minute, 0, 0);
   return d.toISOString();
+}
+
+/** A roadmap with the first two lessons done, so the path shows progress. */
+function demoRoadmap(): Pick<DemoState, "roadmaps" | "roadmapNodes"> {
+  const { lessons, ...roadmap } = derivativesRoadmap;
+  return {
+    roadmaps: [{ ...roadmap, id: "rm-calc", subjectId: "s-math", sourceName: "Lecture 5 - Derivatives.pdf" }],
+    roadmapNodes: lessons.map((lesson, i) => ({
+      ...lesson,
+      id: `rn-${i}`,
+      roadmapId: "rm-calc",
+      position: i,
+      xp: 10,
+      completedAt: i < 2 ? daysFromNow(-3 + i, 18, 0) : null,
+    })),
+  };
 }
 
 function seed(): DemoState {
@@ -193,6 +214,7 @@ function seed(): DemoState {
       body,
       createdAt: new Date(Date.now() - hoursAgo * 3_600_000).toISOString(),
     })),
+    ...demoRoadmap(),
     studySessions: [1, 2, 3, 4, 5, 7].map((ago, i) => ({
       id: `ss-${i}`,
       subjectId: subjects[i % subjects.length].id,
@@ -222,7 +244,16 @@ function save(state: DemoState) {
   }
 }
 
-type CollectionKey = "subjects" | "timetable" | "assignments" | "notes" | "grades" | "decks" | "cards";
+type CollectionKey =
+  | "subjects"
+  | "timetable"
+  | "assignments"
+  | "notes"
+  | "grades"
+  | "decks"
+  | "cards"
+  | "roadmaps"
+  | "roadmapNodes";
 
 export function createDemoRepo(): Repo {
   let state: DemoState | undefined;
@@ -291,6 +322,17 @@ export function createDemoRepo(): Repo {
       return session;
     },
     chat: demoChat(get, () => save(get())),
+    roadmaps: collection("roadmaps"),
+    roadmapNodes: collection("roadmapNodes"),
+    async saveRoadmap(input, lessons) {
+      const roadmap = { ...input, id: crypto.randomUUID() };
+      const s = get();
+      // Newest first, like the database query.
+      s.roadmaps.unshift(roadmap);
+      s.roadmapNodes.push(...lessons.map((lesson) => ({ ...lesson, id: crypto.randomUUID(), roadmapId: roadmap.id })));
+      save(s);
+      return roadmap;
+    },
     async listStudySessions(sinceIso) {
       return get().studySessions.filter((s) => s.startedAt >= sinceIso);
     },

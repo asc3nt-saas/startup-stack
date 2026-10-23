@@ -9,6 +9,8 @@ import type {
   NewRecord,
   Note,
   Profile,
+  Roadmap,
+  RoadmapNode,
   StudySession,
   Subject,
   TimetableEntry,
@@ -55,5 +57,9 @@ export interface Repo {
   listStudySessions(sinceIso: string): Promise<StudySession[]>;
   addStudySession(session: NewRecord<StudySession>): Promise<StudySession>;
   chat: Chat;
+  roadmaps: Collection<Roadmap>;
+  roadmapNodes: Collection<RoadmapNode>;
+  /** Saves a generated roadmap and its lessons in one go. */
+  saveRoadmap(roadmap: NewRecord<Roadmap>, lessons: Omit<NewRecord<RoadmapNode>, "roadmapId">[]): Promise<Roadmap>;
   signOut(): Promise<void>;
 }
