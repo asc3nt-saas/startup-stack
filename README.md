@@ -31,9 +31,11 @@ with sample data saved in your browser, so you can try everything right away.
 ## Connect Supabase (accounts and a real database)
 
 1. Create a free project at https://supabase.com.
-2. In the dashboard open **SQL Editor**, paste the contents of
-   `supabase/migrations/0001_init.sql` and run it. This creates every table,
-   the security rules, the chat functions and the file storage bucket.
+2. In the dashboard open **SQL Editor**, then paste and run each file in
+   `supabase/migrations/` in order (`0001_init.sql`, then `0002_...`). This
+   creates every table, the security rules, the chat functions and the file
+   storage bucket. When a new migration file appears in a later update, run
+   just that file.
 3. Copy `.env.example` to `.env.local` and fill in the URL and anon key from
    **Project Settings > API**.
 4. In **Authentication > URL Configuration** set the Site URL to
@@ -74,6 +76,9 @@ supabase/migrations/ database schema
 
 1. **Foundation** (done): project setup, auth, database schema, dashboard
    shell, Today view, Ctrl+K search, reminders, dark mode, mobile layout.
-2. **Core tools**: timetable, assignments and exams, notes, grades.
+2. **Core tools** (done): adjustable timetable with drag and resize,
+   assignments and exams (list and board), rich text notes with auto-save,
+   grades spreadsheet with weighted averages, GPA and a "what do I need"
+   calculator, subjects and settings.
 3. **Engagement**: flashcards, study timer with flip clock, group chat.
 4. **AI and polish**: Gemini file summaries and roadmaps, landing page, demo data.

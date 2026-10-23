@@ -1,12 +1,23 @@
 import type {
   Assignment,
-  AssignmentStatus,
+  GradeItem,
+  NewRecord,
   Note,
   Profile,
   StudySession,
   Subject,
   TimetableEntry,
 } from "./types";
+
+/** Create, read, update and delete for one kind of record. */
+export interface Collection<T extends { id: string }> {
+  list(): Promise<T[]>;
+  create(input: NewRecord<T>): Promise<T>;
+  update(id: string, patch: Partial<NewRecord<T>>): Promise<T>;
+  remove(id: string): Promise<void>;
+}
+
+export type ProfilePatch = Partial<Pick<Profile, "fullName" | "reminderHours">>;
 
 /**
  * Every read and write in the app goes through this interface. Swapping the
@@ -15,11 +26,12 @@ import type {
  */
 export interface Repo {
   getProfile(): Promise<Profile>;
-  listSubjects(): Promise<Subject[]>;
-  listTimetable(): Promise<TimetableEntry[]>;
-  listAssignments(): Promise<Assignment[]>;
-  setAssignmentStatus(id: string, status: AssignmentStatus): Promise<void>;
-  listNotes(): Promise<Note[]>;
+  updateProfile(patch: ProfilePatch): Promise<void>;
+  subjects: Collection<Subject>;
+  timetable: Collection<TimetableEntry>;
+  assignments: Collection<Assignment>;
+  notes: Collection<Note>;
+  grades: Collection<GradeItem>;
   listStudySessions(sinceIso: string): Promise<StudySession[]>;
   signOut(): Promise<void>;
 }
