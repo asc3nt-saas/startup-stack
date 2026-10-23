@@ -270,7 +270,8 @@ export function createDemoRepo(): Repo {
 
     return {
       async list() {
-        return items();
+        // A copy, so the query cache never holds the live array.
+        return [...items()];
       },
       async create(input: NewRecord<T>) {
         const record = stamp({ ...input, id: crypto.randomUUID() } as T);
@@ -327,9 +328,12 @@ export function createDemoRepo(): Repo {
     async saveRoadmap(input, lessons) {
       const roadmap = { ...input, id: crypto.randomUUID() };
       const s = get();
-      // Newest first, like the database query.
-      s.roadmaps.unshift(roadmap);
-      s.roadmapNodes.push(...lessons.map((lesson) => ({ ...lesson, id: crypto.randomUUID(), roadmapId: roadmap.id })));
+      // New arrays (not push) so cached query results see the change. Newest first, like the database query.
+      s.roadmaps = [roadmap, ...s.roadmaps];
+      s.roadmapNodes = [
+        ...s.roadmapNodes,
+        ...lessons.map((lesson) => ({ ...lesson, id: crypto.randomUUID(), roadmapId: roadmap.id })),
+      ];
       save(s);
       return roadmap;
     },

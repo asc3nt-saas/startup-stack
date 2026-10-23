@@ -4,7 +4,8 @@ import { sampleRoadmap } from "@/lib/ai/samples";
 import { isDemoMode } from "@/lib/config";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
-export const maxDuration = 60;
+// Gemini can take a while on long files, and may fall back to a second model.
+export const maxDuration = 120;
 
 // Vercel rejects request bodies over 4.5 MB.
 const MAX_BYTES = 4 * 1024 * 1024;
