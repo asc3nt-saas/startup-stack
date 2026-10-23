@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { createContext, use, useEffect, useState, type ReactNode } from "react";
 import { useAssignments, useNotes, useSubjects } from "@/lib/data/hooks";
+import { noteText } from "@/lib/format";
 import { mainNav, secondaryNav } from "./nav";
 
 const PaletteContext = createContext<(open: boolean) => void>(() => {});
@@ -103,7 +104,7 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
               {notes.map((n) => (
                 <Command.Item
                   key={n.id}
-                  value={`note ${n.title} ${n.content.slice(0, 200)} ${n.id}`}
+                  value={`note ${n.title} ${noteText(n.content).slice(0, 200)} ${n.id}`}
                   onSelect={() => run(() => router.push(`/notes?focus=${n.id}`))}
                   className={itemClass}
                 >

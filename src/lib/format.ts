@@ -11,9 +11,29 @@ export function formatDue(iso: string, now = new Date()) {
   return format(date, "d MMM");
 }
 
+/** Due label for an item, without "Overdue" once it's done. */
+export function formatDueFor(item: { dueAt: string; status: string }, now = new Date()) {
+  return item.status === "done" ? `Due ${format(new Date(item.dueAt), "d MMM")}` : formatDue(item.dueAt, now);
+}
+
 export function dueTone(iso: string, now = new Date()) {
   const hours = (new Date(iso).getTime() - now.getTime()) / 3_600_000;
   if (hours < 0) return "danger" as const;
   if (hours < 24) return "warning" as const;
   return "muted" as const;
+}
+
+/** Plain text of a note's HTML, for previews and search. */
+export function noteText(html: string) {
+  return html
+    .replace(/<(br|\/p|\/h\d|\/li|\/blockquote|\/pre)>/gi, " ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
 }

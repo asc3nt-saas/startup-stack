@@ -1,6 +1,8 @@
-import type { Repo } from "./repo";
+import type { Collection, Repo } from "./repo";
 import type {
   Assignment,
+  GradeItem,
+  NewRecord,
   Note,
   Profile,
   StudySession,
@@ -8,13 +10,15 @@ import type {
   TimetableEntry,
 } from "./types";
 
-const STORAGE_KEY = "studyhub-demo-v1";
+const STORAGE_KEY = "studyhub-demo-v2";
 
 type DemoState = {
+  profile: { fullName: string; reminderHours: number };
   subjects: Subject[];
   timetable: TimetableEntry[];
   assignments: Assignment[];
   notes: Note[];
+  grades: GradeItem[];
   studySessions: StudySession[];
 };
 
@@ -49,8 +53,41 @@ function seed(): DemoState {
     ["s-math", 5, "10:00", "11:00", "tutorial"],
   ];
 
+  const grade = (
+    subjectId: string,
+    name: string,
+    category: string,
+    score: number | null,
+    maxScore: number,
+    weight: number,
+    daysAgo: number,
+  ): Omit<GradeItem, "id"> => ({
+    subjectId,
+    name,
+    category,
+    score,
+    maxScore,
+    weight,
+    gradedOn: score === null ? null : daysFromNow(-daysAgo).slice(0, 10),
+  });
+
   return {
+    profile: { fullName: "Demo Student", reminderHours: 24 },
     subjects,
+    grades: [
+      grade("s-math", "Homework 1", "Homework", 18, 20, 10, 40),
+      grade("s-math", "Homework 2", "Homework", 16, 20, 10, 26),
+      grade("s-math", "Quiz 1", "Quiz", 42, 50, 15, 20),
+      grade("s-math", "Midterm", "Exam", 71, 100, 25, 9),
+      grade("s-math", "Final exam", "Exam", null, 100, 40, 0),
+      grade("s-phys", "Lab report 1", "Lab", 27, 30, 15, 30),
+      grade("s-phys", "Lab report 2", "Lab", 25, 30, 15, 16),
+      grade("s-phys", "Midterm", "Exam", null, 100, 30, 0),
+      grade("s-cs", "Assignment 1", "Project", 95, 100, 20, 35),
+      grade("s-cs", "Assignment 2", "Project", 88, 100, 20, 14),
+      grade("s-eng", "Essay 1", "Essay", 84, 100, 30, 21),
+      grade("s-hist", "Quiz 1", "Quiz", 7, 10, 20, 12),
+    ].map((g, i) => ({ ...g, id: `g-${i}` })),
     timetable: slots.map(([subjectId, weekday, startsAt, endsAt, kind], i) => ({
       id: `t-${i}`,
       subjectId,
@@ -103,37 +140,66 @@ function save(state: DemoState) {
   }
 }
 
+type CollectionKey = "subjects" | "timetable" | "assignments" | "notes" | "grades";
+
 export function createDemoRepo(): Repo {
   let state: DemoState | undefined;
   const get = () => (state ??= load());
 
+  function collection<K extends CollectionKey>(key: K): Collection<DemoState[K][number]> {
+    type T = DemoState[K][number];
+    const items = () => get()[key] as T[];
+    const write = (next: T[]) => {
+      (get()[key] as T[]) = next;
+      save(get());
+    };
+    const stamp = (record: T) => (key === "notes" ? { ...record, updatedAt: new Date().toISOString() } : record);
+
+    return {
+      async list() {
+        return items();
+      },
+      async create(input: NewRecord<T>) {
+        const record = stamp({ ...input, id: crypto.randomUUID() } as T);
+        write([...items(), record]);
+        return record;
+      },
+      async update(id, patch) {
+        let updated: T | undefined;
+        write(
+          items().map((item) => {
+            if (item.id !== id) return item;
+            updated = stamp({ ...item, ...patch } as T);
+            return updated;
+          }),
+        );
+        if (!updated) throw new Error("Not found");
+        return updated;
+      },
+      async remove(id) {
+        write(items().filter((item) => item.id !== id));
+      },
+    };
+  }
+
   return {
     async getProfile(): Promise<Profile> {
-      return {
-        id: "demo-user",
-        fullName: "Demo Student",
-        avatarUrl: null,
-        email: "demo@studyhub.app",
-        reminderHours: 24,
-      };
+      const { fullName, reminderHours } = get().profile;
+      return { id: "demo-user", fullName, avatarUrl: null, email: "demo@studyhub.app", reminderHours };
     },
-    async listSubjects() {
-      return get().subjects;
-    },
-    async listTimetable() {
-      return get().timetable;
-    },
-    async listAssignments() {
-      return get().assignments;
-    },
-    async setAssignmentStatus(id, status) {
+    async updateProfile(patch) {
       const s = get();
-      s.assignments = s.assignments.map((a) => (a.id === id ? { ...a, status } : a));
+      s.profile = {
+        fullName: patch.fullName ?? s.profile.fullName,
+        reminderHours: patch.reminderHours ?? s.profile.reminderHours,
+      };
       save(s);
     },
-    async listNotes() {
-      return get().notes;
-    },
+    subjects: collection("subjects"),
+    timetable: collection("timetable"),
+    assignments: collection("assignments"),
+    notes: collection("notes"),
+    grades: collection("grades"),
     async listStudySessions(sinceIso) {
       return get().studySessions.filter((s) => s.startedAt >= sinceIso);
     },
