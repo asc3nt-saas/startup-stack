@@ -68,4 +68,43 @@ export type StudySession = {
 };
 
 /** Shape accepted when creating a record: everything the database doesn't generate. */
-export type NewRecord<T extends { id: string }> = Omit<T, "id" | "updatedAt">;
+export type NewRecord<T extends { id: string }> = Omit<T, "id" | "updatedAt" | "createdAt">;
+
+export type FlashcardDeck = {
+  id: string;
+  subjectId: string | null;
+  title: string;
+};
+
+export type Flashcard = {
+  id: string;
+  deckId: string;
+  front: string;
+  back: string;
+  /** Spaced repetition state (SM-2 style). */
+  ease: number;
+  intervalDays: number;
+  /** "YYYY-MM-DD": the day the card is next due. */
+  dueOn: string;
+};
+
+export type ChatRoom = {
+  id: string;
+  name: string;
+  inviteCode: string;
+  createdBy: string;
+};
+
+export type ChatMember = {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+};
+
+export type ChatMessage = {
+  id: string;
+  roomId: string;
+  userId: string;
+  body: string;
+  createdAt: string;
+};

@@ -1,13 +1,14 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { toast } from "sonner";
 import { useIsHydrated } from "@/lib/use-hydrated";
 import { getRepo } from "./index";
 import type { Collection, ProfilePatch, Repo } from "./repo";
-import type { AssignmentStatus, NewRecord } from "./types";
+import type { AssignmentStatus, ChatMessage, NewRecord, StudySession } from "./types";
 
-type CollectionKey = "subjects" | "timetable" | "assignments" | "notes" | "grades";
+type CollectionKey = "subjects" | "timetable" | "assignments" | "notes" | "grades" | "decks" | "cards";
 type Item<K extends CollectionKey> = Repo[K] extends Collection<infer T> ? T : never;
 
 export const queryKeys = {
@@ -17,6 +18,11 @@ export const queryKeys = {
   assignments: ["assignments"] as const,
   notes: ["notes"] as const,
   grades: ["grades"] as const,
+  decks: ["decks"] as const,
+  cards: ["cards"] as const,
+  rooms: ["rooms"] as const,
+  members: (roomId: string) => ["members", roomId] as const,
+  messages: (roomId: string) => ["messages", roomId] as const,
   studySessions: (since: string) => ["studySessions", since] as const,
 };
 
@@ -43,6 +49,8 @@ export const useTimetable = () => useList("timetable");
 export const useAssignments = () => useList("assignments");
 export const useNotes = () => useList("notes");
 export const useGrades = () => useList("grades");
+export const useDecks = () => useList("decks");
+export const useCards = () => useList("cards");
 
 export const useProfile = () =>
   useHydrated(useQuery({ queryKey: queryKeys.profile, queryFn: () => getRepo().getProfile() }));
@@ -124,4 +132,76 @@ export function useUpdateProfile() {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+}
+
+export function useAddStudySession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (session: NewRecord<StudySession>) => getRepo().addStudySession(session),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["studySessions"] }),
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Chat
+// ---------------------------------------------------------------------------
+
+export const useRooms = () =>
+  useHydrated(useQuery({ queryKey: queryKeys.rooms, queryFn: () => getRepo().chat.listRooms() }));
+
+export const useRoomMembers = (roomId: string | null) =>
+  useQuery({
+    queryKey: queryKeys.members(roomId ?? ""),
+    queryFn: () => getRepo().chat.listMembers(roomId!),
+    enabled: roomId !== null,
+  });
+
+/** Messages for a room, kept live by a realtime subscription. */
+export function useRoomMessages(roomId: string | null) {
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: queryKeys.messages(roomId ?? ""),
+    queryFn: () => getRepo().chat.listMessages(roomId!),
+    enabled: roomId !== null,
+  });
+
+  useEffect(() => {
+    if (!roomId) return;
+    return getRepo().chat.subscribe(roomId, (message) => {
+      qc.setQueryData<ChatMessage[]>(queryKeys.messages(roomId), (list = []) =>
+        list.some((m) => m.id === message.id) ? list : [...list, message],
+      );
+      // A new face in the room: refresh the member list for their name.
+      const members = qc.getQueryData<{ id: string }[]>(queryKeys.members(roomId));
+      if (members && !members.some((m) => m.id === message.userId)) {
+        qc.invalidateQueries({ queryKey: queryKeys.members(roomId) });
+      }
+    });
+  }, [roomId, qc]);
+
+  return query;
+}
+
+export function useSendMessage(roomId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: string) => getRepo().chat.sendMessage(roomId, body),
+    onSuccess: (message) =>
+      qc.setQueryData<ChatMessage[]>(queryKeys.messages(roomId), (list = []) =>
+        list.some((m) => m.id === message.id) ? list : [...list, message],
+      ),
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
+export function useRoomActions() {
+  const qc = useQueryClient();
+  const refresh = () => qc.invalidateQueries({ queryKey: queryKeys.rooms });
+  const onError = (error: Error) => toast.error(error.message);
+  return {
+    create: useMutation({ mutationFn: (name: string) => getRepo().chat.createRoom(name), onSuccess: refresh, onError }),
+    join: useMutation({ mutationFn: (code: string) => getRepo().chat.joinRoom(code), onSuccess: refresh, onError }),
+    leave: useMutation({ mutationFn: (roomId: string) => getRepo().chat.leaveRoom(roomId), onSuccess: refresh, onError }),
+  };
 }

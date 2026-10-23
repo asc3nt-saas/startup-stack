@@ -1,6 +1,11 @@
-import type { Collection, Repo } from "./repo";
+import type { Chat, Collection, Repo } from "./repo";
 import type {
   Assignment,
+  ChatMember,
+  ChatMessage,
+  ChatRoom,
+  Flashcard,
+  FlashcardDeck,
   GradeItem,
   NewRecord,
   Note,
@@ -10,7 +15,8 @@ import type {
   TimetableEntry,
 } from "./types";
 
-const STORAGE_KEY = "studyhub-demo-v2";
+const STORAGE_KEY = "studyhub-demo-v3";
+const ME = "demo-user";
 
 type DemoState = {
   profile: { fullName: string; reminderHours: number };
@@ -20,7 +26,29 @@ type DemoState = {
   notes: Note[];
   grades: GradeItem[];
   studySessions: StudySession[];
+  decks: FlashcardDeck[];
+  cards: Flashcard[];
+  rooms: ChatRoom[];
+  roomMembers: Record<string, string[]>;
+  messages: ChatMessage[];
 };
+
+/** Pretend classmates so the chat feels alive in demo mode. */
+const CLASSMATES: ChatMember[] = [
+  { id: ME, name: "Demo Student", avatarUrl: null },
+  { id: "mate-aziza", name: "Aziza Karimova", avatarUrl: null },
+  { id: "mate-timur", name: "Timur Aliyev", avatarUrl: null },
+  { id: "mate-lena", name: "Lena Novak", avatarUrl: null },
+];
+
+const DEMO_REPLIES = [
+  "Good point! 👍",
+  "Can someone share their notes from today?",
+  "I'm free after 5, want to study together?",
+  "Thanks, that helps a lot",
+  "Has anyone started the problem set yet?",
+  "Let's do a quick review session before the exam 📚",
+];
 
 const subjects: Subject[] = [
   { id: "s-math", name: "Calculus", color: "#6366f1", teacher: "Dr. Karimova", room: "B204" },
@@ -111,6 +139,60 @@ function seed(): DemoState {
       { id: "n-3", subjectId: "s-cs", title: "HTTP status codes", content: "200 OK, 201 Created, 400 Bad Request, 401, 404, 500", pinned: false, updatedAt: daysFromNow(-3, 16, 0) },
     ],
     // A study streak ending yesterday, so the Today view has something to show.
+    decks: [
+      { id: "d-cs", subjectId: "s-cs", title: "HTTP and web basics" },
+      { id: "d-hist", subjectId: "s-hist", title: "World War I dates" },
+      { id: "d-eng", subjectId: "s-eng", title: "Vocabulary: Gatsby" },
+    ],
+    cards: (
+      [
+        ["d-cs", "What does HTTP 404 mean?", "Not Found: the server can't find the resource"],
+        ["d-cs", "What does HTTP 201 mean?", "Created: a new resource was created"],
+        ["d-cs", "Which HTTP method is idempotent: POST or PUT?", "PUT"],
+        ["d-cs", "What does REST stand for?", "Representational State Transfer"],
+        ["d-cs", "What port does HTTPS use by default?", "443"],
+        ["d-hist", "When did World War I start?", "28 July 1914"],
+        ["d-hist", "Which event triggered World War I?", "The assassination of Archduke Franz Ferdinand in Sarajevo"],
+        ["d-hist", "When was the Armistice signed?", "11 November 1918"],
+        ["d-hist", "Which treaty ended the war with Germany?", "The Treaty of Versailles (1919)"],
+        ["d-eng", "Ostentatious", "Designed to impress or attract notice; showy"],
+        ["d-eng", "Ephemeral", "Lasting for a very short time"],
+        ["d-eng", "Nouveau riche", "People who have recently become rich, often seen as showy"],
+      ] as const
+    ).map(([deckId, front, back], i) => ({
+      id: `c-${i}`,
+      deckId,
+      front,
+      back,
+      ease: 2.5,
+      intervalDays: 0,
+      dueOn: daysFromNow(0).slice(0, 10),
+    })),
+    rooms: [
+      { id: "r-calc", name: "Calculus study group", inviteCode: "calc42", createdBy: "mate-aziza" },
+      { id: "r-cs", name: "CS project team", inviteCode: "csteam", createdBy: ME },
+    ],
+    roomMembers: {
+      "r-calc": [ME, "mate-aziza", "mate-timur", "mate-lena"],
+      "r-cs": [ME, "mate-lena", "mate-timur"],
+    },
+    messages: (
+      [
+        ["r-calc", "mate-aziza", "Hey everyone! Midterm is next week, should we meet in the library?", 26],
+        ["r-calc", "mate-timur", "Yes! Thursday after class works for me", 25],
+        ["r-calc", ME, "Same here. I can bring my notes on integration by parts", 24],
+        ["r-calc", "mate-lena", "Perfect, I'll book a room 🙌", 23],
+        ["r-calc", "mate-aziza", "Does anyone understand question 7 on the problem set?", 2],
+        ["r-cs", "mate-lena", "I pushed the login page, can you review it?", 5],
+        ["r-cs", "mate-timur", "Looks good. I'll start on the API endpoints tonight", 4],
+      ] as const
+    ).map(([roomId, userId, body, hoursAgo], i) => ({
+      id: `m-${i}`,
+      roomId,
+      userId,
+      body,
+      createdAt: new Date(Date.now() - hoursAgo * 3_600_000).toISOString(),
+    })),
     studySessions: [1, 2, 3, 4, 5, 7].map((ago, i) => ({
       id: `ss-${i}`,
       subjectId: subjects[i % subjects.length].id,
@@ -140,7 +222,7 @@ function save(state: DemoState) {
   }
 }
 
-type CollectionKey = "subjects" | "timetable" | "assignments" | "notes" | "grades";
+type CollectionKey = "subjects" | "timetable" | "assignments" | "notes" | "grades" | "decks" | "cards";
 
 export function createDemoRepo(): Repo {
   let state: DemoState | undefined;
@@ -200,6 +282,15 @@ export function createDemoRepo(): Repo {
     assignments: collection("assignments"),
     notes: collection("notes"),
     grades: collection("grades"),
+    decks: collection("decks"),
+    cards: collection("cards"),
+    async addStudySession(input) {
+      const session = { ...input, id: crypto.randomUUID() };
+      get().studySessions.push(session);
+      save(get());
+      return session;
+    },
+    chat: demoChat(get, () => save(get())),
     async listStudySessions(sinceIso) {
       return get().studySessions.filter((s) => s.startedAt >= sinceIso);
     },
@@ -208,6 +299,87 @@ export function createDemoRepo(): Repo {
         localStorage.removeItem(STORAGE_KEY);
       } catch {}
       state = undefined;
+    },
+  };
+}
+
+function demoChat(get: () => DemoState, persist: () => void): Chat {
+  const listeners = new Map<string, Set<(m: ChatMessage) => void>>();
+
+  function post(roomId: string, userId: string, body: string) {
+    const message: ChatMessage = {
+      id: crypto.randomUUID(),
+      roomId,
+      userId,
+      body,
+      createdAt: new Date().toISOString(),
+    };
+    get().messages.push(message);
+    persist();
+    listeners.get(roomId)?.forEach((fn) => fn(message));
+    return message;
+  }
+
+  const room = (id: string) => {
+    const found = get().rooms.find((r) => r.id === id);
+    if (!found) throw new Error("Room not found");
+    return found;
+  };
+
+  return {
+    async listRooms() {
+      return get().rooms.filter((r) => get().roomMembers[r.id]?.includes(ME));
+    },
+    async createRoom(name) {
+      const created: ChatRoom = {
+        id: crypto.randomUUID(),
+        name,
+        inviteCode: Math.random().toString(16).slice(2, 8),
+        createdBy: ME,
+      };
+      get().rooms.push(created);
+      get().roomMembers[created.id] = [ME];
+      persist();
+      return created;
+    },
+    async joinRoom(code) {
+      const found = get().rooms.find((r) => r.inviteCode === code.trim().toLowerCase());
+      if (!found) throw new Error("Invalid invite code");
+      const members = (get().roomMembers[found.id] ??= []);
+      if (!members.includes(ME)) members.push(ME);
+      persist();
+      return found;
+    },
+    async leaveRoom(roomId) {
+      const s = get();
+      s.roomMembers[roomId] = (s.roomMembers[roomId] ?? []).filter((id) => id !== ME);
+      persist();
+    },
+    async listMembers(roomId) {
+      room(roomId);
+      return (get().roomMembers[roomId] ?? []).map(
+        (id) => CLASSMATES.find((c) => c.id === id) ?? { id, name: "Student", avatarUrl: null },
+      );
+    },
+    async listMessages(roomId) {
+      return get().messages.filter((m) => m.roomId === roomId);
+    },
+    async sendMessage(roomId, body) {
+      const message = post(roomId, ME, body);
+      // A classmate "types" a reply so the demo shows live updates.
+      const others = (get().roomMembers[roomId] ?? []).filter((id) => id !== ME);
+      if (others.length) {
+        const from = others[Math.floor(Math.random() * others.length)];
+        const reply = DEMO_REPLIES[Math.floor(Math.random() * DEMO_REPLIES.length)];
+        setTimeout(() => post(roomId, from, reply), 1500 + Math.random() * 1500);
+      }
+      return message;
+    },
+    subscribe(roomId, onMessage) {
+      const set = listeners.get(roomId) ?? new Set();
+      set.add(onMessage);
+      listeners.set(roomId, set);
+      return () => set.delete(onMessage);
     },
   };
 }

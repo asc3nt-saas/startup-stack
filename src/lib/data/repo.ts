@@ -1,5 +1,10 @@
 import type {
   Assignment,
+  ChatMember,
+  ChatMessage,
+  ChatRoom,
+  Flashcard,
+  FlashcardDeck,
   GradeItem,
   NewRecord,
   Note,
@@ -17,6 +22,19 @@ export interface Collection<T extends { id: string }> {
   remove(id: string): Promise<void>;
 }
 
+export interface Chat {
+  listRooms(): Promise<ChatRoom[]>;
+  createRoom(name: string): Promise<ChatRoom>;
+  /** Joins by invite code and returns the room. */
+  joinRoom(code: string): Promise<ChatRoom>;
+  leaveRoom(roomId: string): Promise<void>;
+  listMembers(roomId: string): Promise<ChatMember[]>;
+  listMessages(roomId: string): Promise<ChatMessage[]>;
+  sendMessage(roomId: string, body: string): Promise<ChatMessage>;
+  /** Calls `onMessage` for every new message in the room. Returns an unsubscribe function. */
+  subscribe(roomId: string, onMessage: (message: ChatMessage) => void): () => void;
+}
+
 export type ProfilePatch = Partial<Pick<Profile, "fullName" | "reminderHours">>;
 
 /**
@@ -32,6 +50,10 @@ export interface Repo {
   assignments: Collection<Assignment>;
   notes: Collection<Note>;
   grades: Collection<GradeItem>;
+  decks: Collection<FlashcardDeck>;
+  cards: Collection<Flashcard>;
   listStudySessions(sinceIso: string): Promise<StudySession[]>;
+  addStudySession(session: NewRecord<StudySession>): Promise<StudySession>;
+  chat: Chat;
   signOut(): Promise<void>;
 }
