@@ -20,7 +20,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="flex min-w-0 flex-1 flex-col">
             {isDemoMode && (
               <div className="bg-accent px-4 py-1.5 text-center text-xs text-accent-foreground">
-                Demo mode: data is saved in this browser only. Add Supabase keys to enable accounts.
+                You’re trying the demo. Everything you add is saved in this browser only.
               </div>
             )}
             <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur-md sm:px-6">

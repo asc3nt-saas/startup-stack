@@ -108,3 +108,40 @@ export type ChatMessage = {
   body: string;
   createdAt: string;
 };
+
+export type QuizQuestion = {
+  question: string;
+  options: string[];
+  /** Index of the correct option. */
+  answer: number;
+  explanation: string;
+};
+
+export type Roadmap = {
+  id: string;
+  subjectId: string | null;
+  title: string;
+  /** Name of the uploaded file, or null for pasted text. */
+  sourceName: string | null;
+  summary: string;
+  keyPoints: string[];
+  /** Flashcards the AI suggested, turned into a deck on request. */
+  cards: { front: string; back: string }[];
+};
+
+/** One lesson on a roadmap. */
+export type RoadmapNode = {
+  id: string;
+  roadmapId: string;
+  position: number;
+  title: string;
+  content: string;
+  quiz: QuizQuestion[];
+  xp: number;
+  completedAt: string | null;
+};
+
+/** What the AI returns before anything is saved. */
+export type GeneratedRoadmap = Omit<Roadmap, "id" | "subjectId" | "sourceName"> & {
+  lessons: Pick<RoadmapNode, "title" | "content" | "quiz">[];
+};

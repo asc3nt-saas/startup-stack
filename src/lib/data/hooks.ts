@@ -6,9 +6,18 @@ import { toast } from "sonner";
 import { useIsHydrated } from "@/lib/use-hydrated";
 import { getRepo } from "./index";
 import type { Collection, ProfilePatch, Repo } from "./repo";
-import type { AssignmentStatus, ChatMessage, NewRecord, StudySession } from "./types";
+import type { AssignmentStatus, ChatMessage, GeneratedRoadmap, NewRecord, StudySession } from "./types";
 
-type CollectionKey = "subjects" | "timetable" | "assignments" | "notes" | "grades" | "decks" | "cards";
+type CollectionKey =
+  | "subjects"
+  | "timetable"
+  | "assignments"
+  | "notes"
+  | "grades"
+  | "decks"
+  | "cards"
+  | "roadmaps"
+  | "roadmapNodes";
 type Item<K extends CollectionKey> = Repo[K] extends Collection<infer T> ? T : never;
 
 export const queryKeys = {
@@ -20,6 +29,8 @@ export const queryKeys = {
   grades: ["grades"] as const,
   decks: ["decks"] as const,
   cards: ["cards"] as const,
+  roadmaps: ["roadmaps"] as const,
+  roadmapNodes: ["roadmapNodes"] as const,
   rooms: ["rooms"] as const,
   members: (roomId: string) => ["members", roomId] as const,
   messages: (roomId: string) => ["messages", roomId] as const,
@@ -51,6 +62,8 @@ export const useNotes = () => useList("notes");
 export const useGrades = () => useList("grades");
 export const useDecks = () => useList("decks");
 export const useCards = () => useList("cards");
+export const useRoadmaps = () => useList("roadmaps");
+export const useRoadmapNodes = () => useList("roadmapNodes");
 
 export const useProfile = () =>
   useHydrated(useQuery({ queryKey: queryKeys.profile, queryFn: () => getRepo().getProfile() }));
@@ -204,4 +217,35 @@ export function useRoomActions() {
     join: useMutation({ mutationFn: (code: string) => getRepo().chat.joinRoom(code), onSuccess: refresh, onError }),
     leave: useMutation({ mutationFn: (roomId: string) => getRepo().chat.leaveRoom(roomId), onSuccess: refresh, onError }),
   };
+}
+
+// ---------------------------------------------------------------------------
+// AI roadmaps
+// ---------------------------------------------------------------------------
+
+/** Saves what the AI generated as a roadmap with one node per lesson. */
+export function useSaveRoadmap() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      generated,
+      subjectId,
+      sourceName,
+    }: {
+      generated: GeneratedRoadmap;
+      subjectId: string | null;
+      sourceName: string | null;
+    }) => {
+      const { lessons, ...roadmap } = generated;
+      return getRepo().saveRoadmap(
+        { ...roadmap, subjectId, sourceName },
+        lessons.map((lesson, position) => ({ ...lesson, position, xp: 10, completedAt: null })),
+      );
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.roadmaps });
+      qc.invalidateQueries({ queryKey: queryKeys.roadmapNodes });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 }

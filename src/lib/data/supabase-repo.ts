@@ -1,6 +1,6 @@
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import type { Chat, Collection, Repo } from "./repo";
-import type { ChatMember, ChatMessage, ChatRoom, NewRecord, StudySession } from "./types";
+import type { ChatMember, ChatMessage, ChatRoom, NewRecord, Roadmap, RoadmapNode, StudySession } from "./types";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- rows are converted to typed models generically */
 
@@ -190,6 +190,20 @@ export function createSupabaseRepo(supabase: SupabaseClient): Repo {
       return fromRow<StudySession>(check(await supabase.from("study_sessions").insert(toRow(session)).select().single()));
     },
     chat: chat(supabase),
+    roadmaps: collection(supabase, "roadmaps", [{ column: "created_at", ascending: false }]),
+    roadmapNodes: collection(supabase, "roadmap_nodes", [{ column: "position" }]),
+    async saveRoadmap(roadmap, lessons) {
+      const saved = fromRow<Roadmap>(check(await supabase.from("roadmaps").insert(toRow(roadmap)).select().single()));
+      const { error } = await supabase
+        .from("roadmap_nodes")
+        .insert(lessons.map((lesson) => toRow({ ...lesson, roadmapId: saved.id } satisfies NewRecord<RoadmapNode>)));
+      if (error) {
+        // Don't leave a roadmap without lessons behind.
+        await supabase.from("roadmaps").delete().eq("id", saved.id);
+        throw new Error(error.message);
+      }
+      return saved;
+    },
     async signOut() {
       await supabase.auth.signOut();
     },

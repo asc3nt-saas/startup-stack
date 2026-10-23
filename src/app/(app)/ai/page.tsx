@@ -1,21 +1,8 @@
 import type { Metadata } from "next";
-import { ComingSoon } from "@/components/coming-soon";
-import { mainNav } from "@/components/shell/nav";
+import { AiView } from "@/components/ai/ai-view";
 
-const item = mainNav[8];
+export const metadata: Metadata = { title: "AI roadmap" };
 
-export const metadata: Metadata = { title: item.label };
-
-export default function Page() {
-  return (
-    <ComingSoon
-      item={item}
-      step={4}
-      features={[
-        "Upload a PDF, slides or notes",
-        "Get a clear summary powered by Gemini",
-        "A Duolingo-style roadmap with lessons, quizzes and XP",
-      ]}
-    />
-  );
+export default function AiPage() {
+  return <AiView />;
 }

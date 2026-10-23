@@ -1,6 +1,5 @@
-import { redirect } from "next/navigation";
+import { LandingPage } from "@/components/landing/landing-page";
 
-// The landing page arrives in step 4. Until then the root opens the dashboard.
 export default function Home() {
-  redirect("/today");
+  return <LandingPage />;
 }
