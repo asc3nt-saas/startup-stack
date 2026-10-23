@@ -3,17 +3,33 @@
 import { motion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { Logo } from "@/components/shell/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { isDemoMode, siteConfig } from "@/lib/config";
+import { isDemoMode, siteConfig, supabaseAnonKey, supabaseUrl } from "@/lib/config";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 function nextPath() {
   const next = new URLSearchParams(window.location.search).get("next");
   return next?.startsWith("/") && !next.startsWith("//") ? next : "/today";
+}
+
+/**
+ * Asks Supabase which sign-in methods are switched on, so the Google button
+ * only appears once Google is set up in the dashboard.
+ */
+function useGoogleEnabled() {
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    if (isDemoMode) return;
+    fetch(`${supabaseUrl}/auth/v1/settings`, { headers: { apikey: supabaseAnonKey } })
+      .then((res) => res.json())
+      .then((settings: { external?: { google?: boolean } }) => setEnabled(Boolean(settings.external?.google)))
+      .catch(() => {});
+  }, []);
+  return enabled;
 }
 
 function GoogleIcon() {
@@ -31,6 +47,17 @@ export function LoginForm() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const googleEnabled = useGoogleEnabled();
+
+  // The auth callback sends people back here when a link can't be used.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("error") !== "auth") return;
+    toast.error("That sign-in link didn't work", {
+      description:
+        "It may have expired or been opened in a different browser. If you just confirmed your email, sign in with your password.",
+      duration: 10_000,
+    });
+  }, []);
 
   async function signInWithGoogle() {
     const supabase = getSupabaseBrowserClient();
@@ -101,13 +128,17 @@ export function LoginForm() {
             </div>
           ) : (
             <>
-              <Button variant="outline" className="mt-8 h-10 w-full" onClick={signInWithGoogle}>
-                <GoogleIcon /> Continue with Google
-              </Button>
-              <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
-                <span className="h-px flex-1 bg-border" /> or with email <span className="h-px flex-1 bg-border" />
-              </div>
-              <form onSubmit={onSubmit} className="space-y-3">
+              {googleEnabled && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                  <Button variant="outline" className="mt-8 h-10 w-full" onClick={signInWithGoogle}>
+                    <GoogleIcon /> Continue with Google
+                  </Button>
+                  <div className="mt-6 flex items-center gap-3 text-xs text-muted-foreground">
+                    <span className="h-px flex-1 bg-border" /> or with email <span className="h-px flex-1 bg-border" />
+                  </div>
+                </motion.div>
+              )}
+              <form onSubmit={onSubmit} className="mt-6 space-y-3">
                 {mode === "signup" && <Input name="fullName" placeholder="Full name" required autoComplete="name" />}
                 <Input name="email" type="email" placeholder="you@school.edu" required autoComplete="email" />
                 <Input

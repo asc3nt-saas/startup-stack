@@ -3,7 +3,8 @@ export const siteConfig = {
   tagline: "Everything a student needs, in one place.",
 };
 
-export const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+// Tolerates the REST endpoint ("…supabase.co/rest/v1/") being pasted instead of the project URL.
+export const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim().replace(/\/(rest\/v1\/?)?$/, "");
 export const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 /**
