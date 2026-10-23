@@ -2,7 +2,15 @@ import "server-only";
 import { z } from "zod";
 import type { GeneratedRoadmap } from "@/lib/data/types";
 
-const MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+// Tried in order. A busy or retired model falls through to the next one, so a
+// spike in demand on Google's side doesn't break the feature mid-demo.
+// gemini-3.6-flash answers in about 12 s; 3.8 was queuing for minutes when this was written.
+const MODELS = [
+  ...new Set([process.env.GEMINI_MODEL || "gemini-3.6-flash", "gemini-3.1-flash-lite", "gemini-3.5-flash-lite"]),
+];
+// Stay inside the route's maxDuration (120 s) with room to save the result.
+const TOTAL_BUDGET_MS = 105_000;
+const ATTEMPT_TIMEOUT_MS = 40_000;
 const API_BASE = process.env.GEMINI_API_BASE || "https://generativelanguage.googleapis.com/v1beta";
 
 export const isAiConfigured = () => Boolean(process.env.GEMINI_API_KEY);
@@ -106,47 +114,70 @@ export class AiError extends Error {
 }
 
 /** Sends the material to Gemini and returns a validated roadmap. */
+type GeminiResponse = {
+  candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] }; finishReason?: string }[];
+  promptFeedback?: { blockReason?: string };
+};
+
+/** Statuses where another model may succeed: overloaded, rate limited, retired or erroring. */
+const TRY_NEXT = new Set([404, 429, 500, 503, 504]);
+
+/** Sends the material to Gemini and returns a validated roadmap. */
 export async function generateRoadmap(input: AiInput): Promise<GeneratedRoadmap> {
   const material =
     input.kind === "file"
       ? { inlineData: { mimeType: input.mimeType, data: input.data.toString("base64") } }
       : { text: `Study material:\n\n${input.text}` };
+  const contents = [{ role: "user", parts: [material, { text: PROMPT }] }];
 
-  const body = {
-    contents: [{ role: "user", parts: [material, { text: PROMPT }] }],
-    generationConfig: {
-      temperature: 0.4,
-      responseMimeType: "application/json",
-      responseSchema,
-      // Gemini 3 models think before answering; a low level keeps it quick.
-      ...(MODEL.startsWith("gemini-3") ? { thinkingConfig: { thinkingLevel: "low" } } : {}),
-    },
-  };
+  const deadline = Date.now() + TOTAL_BUDGET_MS;
+  let lastStatus = 0;
+  let json: GeminiResponse | undefined;
 
-  let res: Response;
-  try {
-    res = await fetch(`${API_BASE}/models/${MODEL}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY ?? "" },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(55_000),
-    });
-  } catch {
-    throw new AiError("The AI took too long to answer. Try a shorter file.", 504);
-  }
+  for (const model of MODELS) {
+    const timeLeft = deadline - Date.now();
+    if (timeLeft < 10_000) break;
+    const body = {
+      contents,
+      generationConfig: {
+        temperature: 0.4,
+        responseMimeType: "application/json",
+        responseSchema,
+        // Full Gemini 3 models think before answering; a low level keeps it quick.
+        ...(model.startsWith("gemini-3") && !model.includes("lite") ? { thinkingConfig: { thinkingLevel: "low" } } : {}),
+      },
+    };
 
-  if (!res.ok) {
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE}/models/${model}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY ?? "" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(Math.min(ATTEMPT_TIMEOUT_MS, timeLeft)),
+      });
+    } catch {
+      console.error("Gemini timed out", model);
+      lastStatus = 504;
+      continue;
+    }
+
+    if (res.ok) {
+      json = (await res.json()) as GeminiResponse;
+      break;
+    }
+    lastStatus = res.status;
     const detail = await res.text().catch(() => "");
-    console.error("Gemini error", res.status, detail.slice(0, 500));
-    if (res.status === 429) throw new AiError("The AI is busy right now. Try again in a minute.", 429);
+    console.error("Gemini error", model, res.status, detail.slice(0, 300));
     if (res.status === 400) throw new AiError("The AI couldn't read this file. Try a PDF, an image or plain text.", 400);
-    throw new AiError("The AI service had a problem. Try again in a moment.");
+    if (res.status === 401 || res.status === 403) throw new AiError("The Gemini API key was rejected. Check GEMINI_API_KEY.", 502);
+    if (!TRY_NEXT.has(res.status)) break;
   }
 
-  const json = (await res.json()) as {
-    candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] }; finishReason?: string }[];
-    promptFeedback?: { blockReason?: string };
-  };
+  if (!json) {
+    if (lastStatus === 504) throw new AiError("The AI took too long to answer. Try a shorter file.", 504);
+    throw new AiError("The AI is busy right now. Try again in a minute.", 503);
+  }
   if (json.promptFeedback?.blockReason) throw new AiError("The AI declined to process this file.", 422);
 
   const text = json.candidates?.[0]?.content?.parts

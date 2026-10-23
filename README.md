@@ -56,7 +56,8 @@ ever sees their own data (enforced in the database by row level security).
 The key is only read on the server (`src/app/api/ai/roadmap/route.ts`), so it
 never reaches the browser. Without a key, uploading a file returns a sample
 roadmap so the feature still works in a demo. Optional: set `GEMINI_MODEL` to
-use a different model (the default is `gemini-3.8-flash`).
+use a different model (the default is `gemini-3.6-flash`). If a model is busy,
+the app falls back to a lighter one automatically.
 
 Files can be PDFs (export slides as PDF), PNG/JPG/WebP images or text, up to
 4 MB, which is the upload limit on Vercel.

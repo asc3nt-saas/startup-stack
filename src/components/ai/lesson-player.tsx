@@ -119,6 +119,7 @@ export function LessonPlayer({
         <div className="h-3 flex-1 overflow-hidden rounded-full bg-muted">
           <motion.div
             className="relative h-full rounded-full bg-success"
+            initial={false}
             animate={{ width: `${Math.max(4, progress)}%` }}
             transition={{ type: "spring", stiffness: 120, damping: 20 }}
           >
