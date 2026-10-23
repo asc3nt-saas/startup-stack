@@ -49,6 +49,17 @@ export type Note = {
   updatedAt: string;
 };
 
+export type GradeItem = {
+  id: string;
+  subjectId: string;
+  name: string;
+  category: string | null;
+  score: number | null;
+  maxScore: number;
+  weight: number;
+  gradedOn: string | null;
+};
+
 export type StudySession = {
   id: string;
   subjectId: string | null;
@@ -56,10 +67,5 @@ export type StudySession = {
   minutes: number;
 };
 
-export type SearchResult = {
-  id: string;
-  type: "assignment" | "note" | "subject";
-  title: string;
-  subtitle?: string;
-  href: string;
-};
+/** Shape accepted when creating a record: everything the database doesn't generate. */
+export type NewRecord<T extends { id: string }> = Omit<T, "id" | "updatedAt">;

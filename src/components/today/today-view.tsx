@@ -39,7 +39,7 @@ import {
   useTimetable,
 } from "@/lib/data/hooks";
 import type { Assignment, Subject } from "@/lib/data/types";
-import { dueTone, formatDue } from "@/lib/format";
+import { dueTone, formatDue, noteText } from "@/lib/format";
 import { useNow } from "@/lib/use-now";
 import { cn } from "@/lib/utils";
 
@@ -103,7 +103,7 @@ export function TodayView() {
         </div>
         <div className="flex gap-2">
           <Button asChild variant="outline">
-            <Link href="/assignments">
+            <Link href="/assignments?new=1">
               <CalendarClock /> Add deadline
             </Link>
           </Button>
@@ -271,7 +271,7 @@ export function TodayView() {
                           {n.pinned && <Pin className="ml-auto size-3.5" />}
                         </div>
                         <div className="font-medium group-hover:text-primary">{n.title}</div>
-                        <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{n.content}</p>
+                        <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{noteText(n.content)}</p>
                       </Link>
                     );
                   })}
