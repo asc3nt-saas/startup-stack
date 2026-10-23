@@ -62,7 +62,7 @@ export function NotesView() {
   }
 
   return (
-    <div className="-my-2 grid gap-6 md:grid-cols-[18rem_1fr]">
+    <div className="-my-2 grid grid-cols-1 gap-6 md:grid-cols-[18rem_1fr]">
       <aside className={cn("space-y-3", selected && "hidden md:block")}>
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold tracking-tight">Notes</h1>

@@ -1,6 +1,6 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Collection, Repo } from "./repo";
-import type { NewRecord, StudySession } from "./types";
+import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
+import type { Chat, Collection, Repo } from "./repo";
+import type { ChatMember, ChatMessage, ChatRoom, NewRecord, StudySession } from "./types";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- rows are converted to typed models generically */
 
@@ -9,13 +9,14 @@ type Row = Record<string, any>;
 const toSnake = (key: string) => key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 const toCamel = (key: string) => key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
 
-// Columns the app never reads or writes directly.
+// Columns most models don't expose. Chat messages keep them (author and time).
 const HIDDEN = new Set(["user_id", "created_at"]);
+const KEEP_ALL = new Set<string>();
 
-function fromRow<T>(row: Row): T {
+function fromRow<T>(row: Row, hidden = HIDDEN): T {
   const out: Row = {};
   for (const [key, value] of Object.entries(row)) {
-    if (HIDDEN.has(key)) continue;
+    if (hidden.has(key)) continue;
     // Postgres "time" comes back as HH:MM:SS; the app uses HH:MM.
     out[toCamel(key)] =
       (key === "starts_at" || key === "ends_at") && typeof value === "string" ? value.slice(0, 5) : value;
@@ -59,6 +60,91 @@ function collection<T extends { id: string }>(
   };
 }
 
+function chat(supabase: SupabaseClient): Chat {
+  const channels = new Map<string, { channel: RealtimeChannel; listeners: Set<(m: ChatMessage) => void> }>();
+  const roomById = async (id: string) =>
+    fromRow<ChatRoom>(check(await supabase.from("chat_rooms").select("*").eq("id", id).single()));
+
+  return {
+    async listRooms() {
+      return check(await supabase.from("chat_rooms").select("*").order("created_at")).map((r: Row) =>
+        fromRow<ChatRoom>(r),
+      );
+    },
+    async createRoom(name) {
+      return fromRow<ChatRoom>(check(await supabase.from("chat_rooms").insert({ name }).select().single()));
+    },
+    async joinRoom(code) {
+      const id = check(await supabase.rpc("join_room", { code: code.trim().toLowerCase() })) as string;
+      return roomById(id);
+    },
+    async leaveRoom(roomId) {
+      const { data } = await supabase.auth.getUser();
+      check(await supabase.from("chat_members").delete().eq("room_id", roomId).eq("user_id", data.user?.id ?? ""));
+    },
+    async listMembers(roomId) {
+      const members = check(await supabase.from("chat_members").select("user_id").eq("room_id", roomId)) as Row[];
+      const ids = members.map((m) => m.user_id);
+      if (!ids.length) return [];
+      const profiles = check(
+        await supabase.from("profiles").select("id, full_name, avatar_url").in("id", ids),
+      ) as Row[];
+      return ids.map((id): ChatMember => {
+        const p = profiles.find((x) => x.id === id);
+        return { id, name: p?.full_name || "Student", avatarUrl: p?.avatar_url ?? null };
+      });
+    },
+    async listMessages(roomId) {
+      // Newest 200, shown oldest first.
+      const rows = check(
+        await supabase
+          .from("chat_messages")
+          .select("*")
+          .eq("room_id", roomId)
+          .order("created_at", { ascending: false })
+          .limit(200),
+      ) as Row[];
+      return rows.reverse().map((r) => fromRow<ChatMessage>(r, KEEP_ALL));
+    },
+    async sendMessage(roomId, body) {
+      return fromRow<ChatMessage>(
+        check(await supabase.from("chat_messages").insert({ room_id: roomId, body }).select().single()),
+        KEEP_ALL,
+      );
+    },
+    subscribe(roomId, onMessage) {
+      // One realtime channel per room, shared by every component that listens.
+      let entry = channels.get(roomId);
+      if (!entry) {
+        const listeners = new Set<(m: ChatMessage) => void>();
+        const channel = supabase
+          .channel(`room:${roomId}`)
+          .on(
+            "postgres_changes",
+            { event: "INSERT", schema: "public", table: "chat_messages", filter: `room_id=eq.${roomId}` },
+            (payload) => {
+              const message = fromRow<ChatMessage>(payload.new as Row, KEEP_ALL);
+              listeners.forEach((fn) => fn(message));
+            },
+          )
+          .subscribe();
+        entry = { channel, listeners };
+        channels.set(roomId, entry);
+      }
+      entry.listeners.add(onMessage);
+      return () => {
+        const current = channels.get(roomId);
+        if (!current) return;
+        current.listeners.delete(onMessage);
+        if (current.listeners.size === 0) {
+          supabase.removeChannel(current.channel);
+          channels.delete(roomId);
+        }
+      };
+    },
+  };
+}
+
 /** Row level security scopes every query to the signed-in user. */
 export function createSupabaseRepo(supabase: SupabaseClient): Repo {
   async function currentUser() {
@@ -88,6 +174,8 @@ export function createSupabaseRepo(supabase: SupabaseClient): Repo {
     assignments: collection(supabase, "assignments", [{ column: "due_at" }]),
     notes: collection(supabase, "notes", [{ column: "updated_at", ascending: false }]),
     grades: collection(supabase, "grade_items", [{ column: "graded_on" }, { column: "created_at" }]),
+    decks: collection(supabase, "flashcard_decks", [{ column: "created_at" }]),
+    cards: collection(supabase, "flashcards", [{ column: "created_at" }]),
     async listStudySessions(sinceIso) {
       const rows = check(
         await supabase
@@ -98,6 +186,10 @@ export function createSupabaseRepo(supabase: SupabaseClient): Repo {
       );
       return rows.map((r: Row) => fromRow<StudySession>(r));
     },
+    async addStudySession(session) {
+      return fromRow<StudySession>(check(await supabase.from("study_sessions").insert(toRow(session)).select().single()));
+    },
+    chat: chat(supabase),
     async signOut() {
       await supabase.auth.signOut();
     },

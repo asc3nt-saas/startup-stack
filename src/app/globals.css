@@ -97,3 +97,32 @@
     transform: translate(-50%, -48%) scale(0.97);
   }
 }
+
+/* Flip clock */
+@keyframes flip-top {
+  from {
+    transform: rotateX(0deg);
+  }
+  to {
+    transform: rotateX(-90deg);
+  }
+}
+
+@keyframes flip-bottom {
+  from {
+    transform: rotateX(90deg);
+  }
+  to {
+    transform: rotateX(0deg);
+  }
+}
+
+.animate-flip-top {
+  transform-origin: bottom;
+  animation: flip-top 0.28s ease-in forwards;
+}
+
+.animate-flip-bottom {
+  transform-origin: top;
+  animation: flip-bottom 0.28s 0.28s ease-out both;
+}

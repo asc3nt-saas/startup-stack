@@ -80,5 +80,7 @@ supabase/migrations/ database schema
    assignments and exams (list and board), rich text notes with auto-save,
    grades spreadsheet with weighted averages, GPA and a "what do I need"
    calculator, subjects and settings.
-3. **Engagement**: flashcards, study timer with flip clock, group chat.
+3. **Engagement** (done): flashcards with spaced repetition and flip
+   animations, a flip clock focus timer that keeps running across pages with
+   streaks and XP levels, and real-time group chat with invite codes.
 4. **AI and polish**: Gemini file summaries and roadmaps, landing page, demo data.
