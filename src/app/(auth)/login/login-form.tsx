@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { Logo } from "@/components/shell/logo";
+import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { isDemoMode, siteConfig, supabaseAnonKey, supabaseUrl } from "@/lib/config";
@@ -105,7 +106,10 @@ export function LoginForm() {
   return (
     <div className="grid min-h-dvh lg:grid-cols-2">
       <div className="flex flex-col p-6 sm:p-10">
-        <Logo />
+        <div className="flex items-center justify-between">
+          <Logo />
+          <ThemeToggle />
+        </div>
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}

@@ -16,6 +16,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { isDemoMode, siteConfig } from "@/lib/config";
 import { cn } from "@/lib/utils";
@@ -153,6 +154,7 @@ export function LandingPage() {
             </a>
           </nav>
           <div className="ml-auto flex items-center gap-2">
+            <ThemeToggle />
             <Button asChild variant="ghost" className="hidden sm:inline-flex">
               <Link href="/login">Sign in</Link>
             </Button>
