@@ -299,7 +299,7 @@ export function createDemoRepo(): Repo {
   return {
     async getProfile(): Promise<Profile> {
       const { fullName, reminderHours } = get().profile;
-      return { id: "demo-user", fullName, avatarUrl: null, email: "demo@studyhub.app", reminderHours };
+      return { id: "demo-user", fullName, avatarUrl: null, email: "demo@quizstack.app", reminderHours };
     },
     async updateProfile(patch) {
       const s = get();

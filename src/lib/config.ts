@@ -1,5 +1,5 @@
 export const siteConfig = {
-  name: "StudyHub",
+  name: "QuizStack",
   tagline: "Everything a student needs, in one place.",
 };
 
