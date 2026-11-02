@@ -1,4 +1,4 @@
-# StudyHub
+# QuizStack
 
 One dashboard for everything a student uses: timetable, assignments and exams,
 notes, grades, flashcards, a focus timer, group chat and AI study roadmaps.
