@@ -60,7 +60,7 @@ export function ReminderBell() {
       if (notified[a.id] === today) continue;
       new Notification(a.kind === "exam" ? `Exam: ${a.title}` : a.title, {
         body: formatDue(a.dueAt),
-        icon: "/icon.svg",
+        icon: "/icon-192.png",
         tag: a.id,
       });
       notified[a.id] = today;

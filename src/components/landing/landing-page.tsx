@@ -16,6 +16,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { Logo } from "@/components/shell/logo";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { isDemoMode, siteConfig } from "@/lib/config";
@@ -137,11 +138,7 @@ export function LandingPage() {
     <div className="min-h-dvh overflow-x-clip">
       <header className="sticky top-0 z-40 border-b border-transparent bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4 sm:px-6">
-          <Link href="/" className="flex items-center gap-2.5 font-semibold tracking-tight">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/icon.svg" alt="" className="size-8" />
-            <span>{siteConfig.name}</span>
-          </Link>
+          <Logo href="/" />
           <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
             <a href="#features" className="hover:text-foreground">
               Features
